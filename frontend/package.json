@@ -1,0 +1,19 @@
+{
+  "name": "oldman-admin-demo-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm clean && vite build",
+    "clean": "rm -rf ../static/dist",
+    "dev": "vite --host 127.0.0.1 --port 5174 --strictPort",
+    "generate:icons": "oldman-web-icons --output src/generated/icons.css --source ../apps --exclude-shared",
+    "prebuild": "pnpm generate:icons"
+  },
+  "dependencies": {
+    "oldman-web": "^0.1.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.21"
+  }
+}

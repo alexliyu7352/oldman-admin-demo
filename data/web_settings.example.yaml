@@ -1,0 +1,111 @@
+apps:
+  - oldman.auth
+  - oldman.apps.admin
+  - oldman.web.messages.notifications
+  - apps.demo
+app_settings:
+  auth:
+    user_model: oldman.auth.models.User
+  admin:
+    require_superuser: false
+core:
+  app_name: oldman_admin_demo
+logging:
+  level: 20
+process:
+  pid_dir: pids
+web:
+  listen_host: 127.0.0.1
+  listen_port: 17999
+  debug: false
+  auto_reload: false
+  workers: 1
+  access_log: false
+  response_timeout: 120
+  request_timeout: 120
+  keep_alive_timeout: 120
+  real_ip_header: X-Real-IP
+  websocket_max_size: 1048576
+  websocket_ping_interval: 5
+  websocket_ping_timeout: 20
+  security:
+    secret_key:
+    token_expire_time: 86400
+    csrf:
+      ttl: 3600
+      check_referer: true
+      check_url: false
+    fingerprint:
+      aes_secret_key:
+      timestamp_max_diff: 300000
+      rate_limits:
+        default:
+          window: 60
+          fp_max: 20
+          ip_max: 40
+        /api/login:
+          window: 300
+          fp_max: 5
+          ip_max: 10
+      max_fingerprints_per_ip: 5
+      max_ips_per_fingerprint: 3
+      blacklist_threshold: 5
+      blacklist_duration: 3600
+      violation_ttl: 3600
+  session:
+    enabled: true
+    redis_alias: SESSION
+    expiry: 86400
+    prefix: "oldman_admin_demo_session:"
+    user_prefix: "oldman_admin_demo_user:"
+    cookie_name: oldman_admin_demo_session_id
+    cookie_domain:
+    cookie_httponly: true
+    cookie_secure: false
+    cookie_samesite: Lax
+  messages:
+    enabled: true
+  sse:
+    enabled: true
+    redis_alias: SSE
+    channel_prefix: oldman_admin_demo
+    heartbeat_interval: 15.0
+    session_check_interval: 30.0
+    queue_size: 100
+    max_message_size: 65536
+  template:
+    dir: templates
+  static:
+    dir: static
+    root: static
+    url: /static
+  media:
+    storage: default
+    url: /media/
+  frontend:
+    vite_dev_server_url: http://localhost:5173
+database:
+  url: sqlite+aiosqlite:///data/admin_demo.db
+  echo: false
+  enable_sql_logging: false
+redis:
+  SESSION:
+    redis_url: redis://127.0.0.1:6379/5
+  SSE:
+    redis_url: redis://127.0.0.1:6379/6
+storages:
+  default:
+    backend: oldman.storage.backends.filesystem.FileSystemStorage
+    options:
+      location: media
+i18n:
+  use_i18n: true
+  use_i18n_path: false
+  default_language: en
+  languages:
+    en:
+      flag: us
+    zh-Hans:
+      flag: cn
+    zh-Hant:
+      flag: tw

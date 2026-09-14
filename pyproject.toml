@@ -1,0 +1,14 @@
+[project]
+name = "oldman-admin-demo"
+version = "0.1.0"
+description = "Standalone consumer example for the built-in Oldman Admin."
+requires-python = ">=3.12, <3.14"
+dependencies = [
+    "oldman>=0.1.0,<0.2.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.oldman]
+project_id = "6cbbf54f-47de-4c12-bba8-07c6b83d1304"
