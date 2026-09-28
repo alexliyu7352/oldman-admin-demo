@@ -72,6 +72,16 @@ fixture 的主键是1–25，再次导入会按主键更新这些记录；只在
 
 浏览器脚本会启动隔离的 Redis、数据库和服务，只清理自己创建的进程与临时文件。
 
+## 翻译
+
+本项目没有自己的前端页面：`frontend/` 只有一张 `admin-extension.css`，界面就是框架自带的 Admin。
+所以它不需要前端 i18n 构建产物。Admin 的语言包是挂在它自己前缀下的一条路由，内容在请求时按
+locales 根合并，项目补的翻译放进本项目的 `locales/` 即可被合并进去，改完执行 `./run.sh i18n compile`
+重启生效，不需要重新构建前端。
+
+有自己 Dashboard 页面的项目（如 EPG Demo 和脚手架生成的项目）走另一条路：语言包是构建产物，
+由 `oldman i18n compile-frontend` 生成，新增语言后必须重新构建前端。
+
 ## 框架文档
 
 实际配置和操作对应 [Admin 用户教程](https://github.com/alexliyu7352/oldman/blob/master/docs/users/admin.md)；模型注册、权限、模板及共享前端扩展见 [Admin 开发者参考](https://github.com/alexliyu7352/oldman/blob/master/docs/developers/admin.md)与 [Agent 接线指南](https://github.com/alexliyu7352/oldman/blob/master/docs/agents/admin.md)。使用与本地框架/Demo 提交匹配的文档，不能把本地验证误称为远端已经发布。

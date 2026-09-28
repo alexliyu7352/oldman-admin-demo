@@ -99,7 +99,7 @@ class AdminNotificationBrowserWrapperTest(unittest.TestCase):
                 events.append("redis:stop")
 
         @contextmanager
-        def service(_environment: dict[str, str], _config_file: Path):
+        def service(_config_file: Path, **_options: object):
             events.append("service:start")
             try:
                 yield object()
@@ -196,28 +196,16 @@ class AdminNotificationBrowserWrapperTest(unittest.TestCase):
         self.assertNotIn("copytree", source)
         self.assertIn("verify-notifications-browser.py", source)
 
-    def test_firefox_bidi_connects_to_the_websocket_session_endpoint(self) -> None:
-        browser_gate = load_browser_gate()
-        with patch.object(browser_gate, "WebSocket") as websocket:
-            browser_gate.FirefoxBiDi(47381)
-
-        websocket.assert_called_once_with("ws://127.0.0.1:47381/session")
-
-    def test_firefox_bidi_decodes_standard_object_remote_values(self) -> None:
+    def test_the_browser_gate_only_declares_this_project_urls(self) -> None:
+        """通知 UI 的断言在框架里；这里只声明本项目的地址。"""
         browser_gate = load_browser_gate()
 
-        self.assertEqual(
-            browser_gate._bidi_value(
-                {
-                    "type": "object",
-                    "value": [
-                        ["path", {"type": "string", "value": "/admin"}],
-                        ["topbar", {"type": "boolean", "value": True}],
-                    ],
-                }
-            ),
-            {"path": "/admin", "topbar": True},
-        )
+        self.assertEqual("admin", browser_gate.ADMIN_HOST.name)
+        self.assertEqual("/admin/login", browser_gate.ADMIN_HOST.login_path)
+        self.assertEqual("/admin/user-notifications", browser_gate.ADMIN_HOST.center_path)
+        source = BROWSER_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("from oldman.testing.notifications import HostContract, notification_gate_main", source)
+        self.assertNotIn("class FirefoxBiDi", source)
 
 
 if __name__ == "__main__":

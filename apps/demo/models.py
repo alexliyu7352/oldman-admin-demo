@@ -14,7 +14,7 @@ from oldman.i18n import gettext_lazy as _
 class DemoProject(DatabaseModel):
     """Editable project record used to demonstrate generic Admin CRUD."""
 
-    __tablename__ = "admin_demo_project"  # pyright: ignore[reportAssignmentType] -- SQLAlchemy declared_attr override
+    __tablename__ = "admin_demo_project"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)

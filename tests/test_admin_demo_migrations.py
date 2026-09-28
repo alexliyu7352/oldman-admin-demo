@@ -14,30 +14,40 @@ from pathlib import Path
 
 from ruamel.yaml import YAML
 
+from oldman.testing import find_free_port, gate_settings, owned_redis_server
+
 ROOT = Path(__file__).resolve().parents[1]
 ADMIN_DEMO = ROOT
 
 
-def copy_admin_demo(destination: Path) -> Path:
-    """Copy only source files required by the isolated migration consumer."""
+def copy_admin_demo(destination: Path, *, redis_url: str) -> Path:
+    """Copy only source files required by the isolated migration consumer.
+
+    The settings come from the shared gate helper, which points every Redis alias at the
+    test's own server. ``changepassword`` ends the user's sessions, and on the example
+    settings it would do that on the developer's Redis, where a running demo keeps its
+    sessions under the same key prefix and user ids.
+    """
     project = destination / "admin_demo"
     project.mkdir()
     for directory in ("apps", "config", "services"):
         shutil.copytree(ADMIN_DEMO / directory, project / directory)
-    (project / "data").mkdir()
     shutil.copy2(ADMIN_DEMO / "pyproject.toml", project / "pyproject.toml")
-    shutil.copy2(
+    gate_settings(
         ADMIN_DEMO / "data" / "web_settings.example.yaml",
-        project / "data" / "web_settings.yaml",
+        project / "data",
+        service_port=find_free_port(),
+        redis_url=redis_url,
+        namespace="admin_demo_migration",
+        database_name="admin_demo.db",
+        customize=_without_translations,
     )
-    # The lifecycle check below does not need a Sanic translation environment.
-    config_path = project / "data" / "web_settings.yaml"
-    payload = YAML(typ="safe", pure=True).load(config_path.read_text(encoding="utf-8"))
-    payload["i18n"]["use_i18n"] = False
-    yaml = YAML()
-    with config_path.open("w", encoding="utf-8") as file:
-        yaml.dump(payload, file)
     return project
+
+
+def _without_translations(payload: dict) -> None:
+    # The lifecycle check below does not need a Sanic translation environment.
+    payload["i18n"]["use_i18n"] = False
 
 
 def project_environment(project: Path) -> dict[str, str]:
@@ -113,10 +123,17 @@ class AdminDemoMigrationTests(unittest.TestCase):
 
     def test_clean_copy_migrates_then_runs_fixtures_and_admin_commands(self) -> None:
         """Settings, migrations and data writers work from an empty SQLite file."""
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            project = copy_admin_demo(Path(temporary_directory))
+        with (
+            tempfile.TemporaryDirectory() as temporary_directory,
+            owned_redis_server(Path(temporary_directory) / "redis", environment=os.environ) as redis_url,
+        ):
+            project = copy_admin_demo(Path(temporary_directory), redis_url=redis_url)
 
             settings_sync = run_cli(project, "web", "settings", "sync")
+            # `changepassword` below ends the user's sessions through this store: check it before anything runs.
+            synced = YAML(typ="safe", pure=True).load((project / "data" / "web_settings.yaml").read_text(encoding="utf-8"))
+            session_store = synced["redis"][synced["web"]["session"]["redis_alias"]]["redis_url"]
+            self.assertTrue(session_store.startswith(redis_url), session_store)
             history = run_cli(project, "db", "history")
             before = run_cli(project, "db", "status")
             migrated = run_python(

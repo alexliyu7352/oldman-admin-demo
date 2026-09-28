@@ -58,8 +58,6 @@ def default_session_config() -> SessionConfig:
     return SessionConfig(
         enabled=True,
         expiry=86400,
-        prefix="oldman_admin_demo_session:",
-        user_prefix="oldman_admin_demo_user:",
         cookie_name="oldman_admin_demo_session_id",
     )
 

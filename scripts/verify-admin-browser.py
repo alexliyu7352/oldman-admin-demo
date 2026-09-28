@@ -16,7 +16,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from scripts.browser_cdp import (  # noqa: E402
+from oldman.testing import (  # noqa: E402
     BrowserResult,
     BrowserVerificationError,
     ChromePage,
@@ -71,7 +71,8 @@ SemanticVisualSpec = tuple[str, str, float, float] | tuple[str, str, float, floa
 SEMANTIC_VISUAL_CONTRACT: dict[str, tuple[SemanticVisualSpec, ...]] = {
     "desktop-list-top": (
         ("page title", ".om-page-title", 1, 20),
-        ("new control", ".om-card-header .om-button-primary", 32, 28),
+        # 视觉改版把列表页的新增动作放进了 page head 的动作区，不再挂在卡片头上。
+        ("new control", ".om-page-actions .om-button-primary", 32, 28),
         ("table", "[data-om-component='table']", 320, 120),
         ("name sort control", "[data-om-table-sort='name']", 32, 16, True),
         ("first edit control", "[data-om-table-row] [data-om-column='action'] a", 24, 24),
@@ -787,8 +788,9 @@ def _verify_admin_registry_card_hover(client: Any, admin_url: str) -> dict[str, 
             """
             (() => {
               const card = document.querySelector('.om-page-section .om-card');
-              const utility = Array.from(card.classList).find((name) => name.startsWith('hover:border-primary-'));
-              const selector = utility ? `.${CSS.escape(utility)}:hover` : '';
+              // 卡片的 hover 现在由组件类 .om-card-animate 提供（规则在 @media (hover: hover) 里），
+              // 不再是 hover:border-primary-* 这种工具类。
+              const selector = card.classList.contains('om-card-animate') ? '.om-card-animate:hover' : '';
               const contains = (rules) => Array.from(rules || []).some((rule) =>
                 rule.selectorText === selector || (rule.cssRules && contains(rule.cssRules))
               );
@@ -993,21 +995,29 @@ def _shared_dashboard_shell_script() -> str:
 
 
 def _font_loading_script() -> str:
-    """Require the real Admin page to fetch and activate the shared 700 webfont."""
+    """Require the real Admin page to fetch and activate the shared webfont.
+
+    设计的字重是 400/500/600（`--om-font-weight-regular/medium/semibold`）；300 和 700 没有 token、
+    也没有人用，框架已经不再发它们的字体文件，所以门禁不该要求 700 加载。
+    """
     return r"""
     (async () => {
       const failures = [];
       await document.fonts.ready;
       const normalizeFamily = (value) => String(value || '').replace(/["']/g, '').trim().toLowerCase();
       const faces = Array.from(document.fonts).filter((face) => normalizeFamily(face.family) === 'dm sans');
-      const weight700 = faces.find((face) => String(face.weight) === '700');
-      if (!weight700) failures.push('DM Sans 700 FontFace is not registered');
-      else if (weight700.status !== 'loaded') failures.push(`DM Sans 700 FontFace status is ${weight700.status}`);
-      if (!document.fonts.check('700 16px "DM Sans"')) failures.push('Font Loading API rejected DM Sans 700');
-      const resources = performance.getEntriesByType('resource').map((entry) => decodeURIComponent(entry.name));
-      if (!resources.some((name) => /dm-sans[^/]*700-normal[^/]*\.woff2(?:\?|$)/.test(name))) {
-        failures.push('DM Sans 700 woff2 was not fetched by the real page');
+      for (const weight of ['400', '500', '600']) {
+        if (!faces.some((face) => String(face.weight) === weight)) failures.push(`DM Sans ${weight} FontFace is not registered`);
       }
+      for (const weight of ['300', '700']) {
+        if (faces.some((face) => String(face.weight) === weight)) failures.push(`DM Sans ${weight} is registered but no token uses it`);
+      }
+      const loaded = faces.filter((face) => face.status === 'loaded').map((face) => String(face.weight));
+      if (!loaded.length) failures.push(`no DM Sans FontFace reached status=loaded: ${JSON.stringify(faces.map((face) => [face.weight, face.status]))}`);
+      if (!document.fonts.check('400 16px "DM Sans"')) failures.push('Font Loading API rejected DM Sans 400');
+      const resources = performance.getEntriesByType('resource').map((entry) => decodeURIComponent(entry.name));
+      const fetched = loaded.filter((weight) => resources.some((name) => new RegExp(`dm-sans[^/]*${weight}-normal[^/]*\\.woff2(?:\\?|$)`).test(name)));
+      if (loaded.length && !fetched.length) failures.push(`no loaded DM Sans weight was fetched as woff2: ${JSON.stringify(loaded)}`);
       return { failures, faces: faces.map((face) => ({ weight: face.weight, status: face.status })) };
     })()
     """
@@ -1821,11 +1831,13 @@ def _verify_admin_user_management(
         label="Admin lifecycle user",
     )
     if len(failures) == before_login_failures:
-        navigate(client, user_list_url)
+        # A staff account without roles opens the Admin but not user management (auth.users.*, since
+        # framework 6d9fc57c); the index is where the new password has to get it.
+        navigate(client, urljoin(base_url, "/admin"))
         access_state = (
             client.evaluate(
                 """
-            (() => ({ failures: document.querySelector('[data-om-component="table"]') ? [] : ['user list is inaccessible'] }))()
+            (() => ({ failures: !location.pathname.startsWith('/admin/login') && document.querySelector('.om-page-section') ? [] : [`Admin index is inaccessible at ${location.pathname}`] }))()
             """
             )
             or {}
@@ -2700,6 +2712,10 @@ def _click_and_wait_for_path(client: Any, selector: str, expected_path: str, req
                 resolve(false);
                 return;
               }
+              // The main frame reports mounted before Turbo's promoted page visit has finished;
+              // that visit ends at turbo:load, and going back before it starts loses the restore.
+              let loaded = false;
+              document.addEventListener('turbo:load', () => { loaded = true; }, { once: true });
               control.click();
               let attempts = 0;
               const check = () => {
@@ -2713,6 +2729,7 @@ def _click_and_wait_for_path(client: Any, selector: str, expected_path: str, req
                   location.pathname === config.expectedPath
                   && document.querySelector(config.requiredSelector)
                   && frameSettled
+                  && loaded
                 ) {
                   resolve(true);
                   return;
@@ -3105,6 +3122,7 @@ def _user_new_history_cancel_script(expected_location: str, username: str) -> st
         + r""";
           const failures = [];
           let attempts = 0;
+          // 临时诊断：记录每一次表格刷新的请求 URL 和当时的页面 URL。
           const waitForList = (canonicalLocation = '', phase = 'initial') => {
             const table = document.querySelector('[data-om-component="table"]');
             const q = document.querySelector('[data-om-component="table-filter-form"] [name="q"]');
@@ -3135,7 +3153,19 @@ def _user_new_history_cancel_script(expected_location: str, username: str) -> st
                 failures.push(`list URL is ${location.pathname}${location.search}`);
               }
               if (canonicalLocation && location.pathname + location.search !== canonicalLocation) {
-                failures.push(`restored canonical URL is ${location.pathname}${location.search}`);
+                // 失败时把现场带上：光说"URL 不对"没法判断是谁改写了这条历史条目。
+                const tableRoot = document.querySelector('[data-om-component="table"]');
+                const filterAttrs = tableRoot
+                  ? Array.from(tableRoot.attributes)
+                      .filter((attribute) => attribute.name.startsWith('data-om-filter-') || attribute.name.startsWith('data-om-table-initial') || attribute.name === 'data-om-table-page-size')
+                      .map((attribute) => `${attribute.name}=${attribute.value}`)
+                  : ['table root missing'];
+                failures.push(
+                  `restored canonical URL is ${location.pathname}${location.search}`
+                  + ` (expected ${canonicalLocation}; root ${filterAttrs.join(' ')};`
+                  + ` restorationIndex=${history.state?.turbo?.restorationIndex};`
+                  + ` tableStatus=${tableRoot?.dataset.omStatus})`
+                );
               }
               if (q?.value !== config.username) failures.push(`restored q is ${q?.value || 'missing'}`);
               if (active?.value !== 'true') failures.push(`restored is_active is ${active?.value || 'missing'}`);
@@ -3172,11 +3202,16 @@ def _user_new_history_cancel_script(expected_location: str, username: str) -> st
               resolve({ failures: ['New User link is missing'] });
               return;
             }
+            // Turbo pushes the /new URL and renders the form before it promotes the frame navigation
+            // to a page visit; going back before that visit starts lets it cancel the restore, and the
+            // list URL keeps the form. The navigation is over at its turbo:load.
+            let newPageLoaded = false;
+            document.addEventListener('turbo:load', () => { newPageLoaded = true; }, { once: true });
             newLink.click();
             attempts = 0;
             const waitForNew = () => {
               const form = document.querySelector('form[data-om-component="form"][data-om-form]');
-              if (location.pathname === '/admin/oldman_user/new' && form) {
+              if (location.pathname === '/admin/oldman_user/new' && form && newPageLoaded) {
                 const cancel = form.querySelector('.om-form-actions [data-om-history-back]');
                 const restorationIndex = history.state?.turbo?.restorationIndex;
                 if (!cancel) failures.push('new-user form has no shared HistoryBack Cancel');

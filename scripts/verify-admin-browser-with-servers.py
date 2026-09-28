@@ -135,11 +135,23 @@ def main() -> int:
                 redis_url=redis_url,
                 service_port=service_port,
             )
-            wrapper.migrate_gate_database(config_file, state_root)
-            wrapper.ensure_gate_admin(environment, config_file)
+            # 这些助手现在来自 oldman.testing.gates，参数是关键字形式，和通知门禁那边同一套。
+            wrapper.migrate_gate_database(config_file, state_root, project_root=ROOT)
+            wrapper.ensure_gate_admin(
+                config_file,
+                environment=environment,
+                project_root=ROOT,
+                username=USERNAME,
+                password=PASSWORD,
+            )
             prepare_crud_data(environment, config_file)
-            with wrapper.owned_service(environment, config_file) as process:
-                wrapper.wait_for_service(process, service_port)
+            with wrapper.owned_service(
+                config_file,
+                environment=environment,
+                project_root=ROOT,
+                name="admin-service",
+            ) as process:
+                wrapper.wait_for_service(process, service_port, name="Admin service")
                 result = run_browser(
                     environment,
                     service_port=service_port,
