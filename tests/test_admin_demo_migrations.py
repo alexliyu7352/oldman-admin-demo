@@ -66,14 +66,18 @@ def project_environment(project: Path) -> dict[str, str]:
 def run_cli(
     project: Path,
     *args: str,
-    input_text: str | None = None,
+    environment: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run one public Oldman command in the copied project."""
+    """Run one public Oldman command in the copied project.
+
+    stdin is closed: the framework's questions do not read piped answers, so a command that
+    needs one gets it from `environment` (preset answers) or fails naming the variable.
+    """
     return subprocess.run(
         [sys.executable, "-m", "oldman.cli", *args],
         cwd=project,
-        env=project_environment(project),
-        input=input_text,
+        env={**project_environment(project), **(environment or {})},
+        stdin=subprocess.DEVNULL,
         text=True,
         capture_output=True,
         timeout=30,
@@ -219,14 +223,15 @@ class AdminDemoMigrationTests(unittest.TestCase):
                 "migration_admin",
                 "--email",
                 "migration@example.com",
-                input_text="MigrationAdmin123\nMigrationAdmin123\n",
+                "--noinput",
+                environment={"OLDMAN_SUPERUSER_PASSWORD": "MigrationAdmin123"},
             )
             change_password = run_cli(
                 project,
                 "web",
                 "changepassword",
                 "migration_admin",
-                input_text="ChangedAdmin123\nChangedAdmin123\n",
+                environment={"OLDMAN_ANSWER_CHANGEPASSWORD_PASSWORD": "ChangedAdmin123"},
             )
             credentials = run_python(
                 project,

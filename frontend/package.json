@@ -11,7 +11,7 @@
     "prebuild": "pnpm generate:icons"
   },
   "dependencies": {
-    "oldman-web": "^0.1.0"
+    "oldman-web": "^0.4.0"
   },
   "devDependencies": {
     "vite": "^5.4.21"
