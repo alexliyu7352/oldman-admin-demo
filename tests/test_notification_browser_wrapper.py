@@ -67,13 +67,19 @@ class AdminNotificationBrowserWrapperTest(unittest.TestCase):
             payload["database"]["url"],
             f"sqlite+aiosqlite:///{state_root / 'admin.sqlite3'}",
         )
+        # gate_settings numbers the written aliases in name order, then the built-in ones left out;
+        # the example writes DEFAULT, SESSION and SSE. Each must sit on the gate's own Redis.
         self.assertEqual(
-            payload["redis"]["SESSION"]["redis_url"],
+            payload["redis"]["DEFAULT"]["redis_url"],
             "redis://127.0.0.1:47329/0",
         )
         self.assertEqual(
-            payload["redis"]["SSE"]["redis_url"],
+            payload["redis"]["SESSION"]["redis_url"],
             "redis://127.0.0.1:47329/1",
+        )
+        self.assertEqual(
+            payload["redis"]["SSE"]["redis_url"],
+            "redis://127.0.0.1:47329/2",
         )
         self.assertTrue(payload["web"]["sse"]["enabled"])
         self.assertEqual(payload["web"]["listen_port"], 39107)

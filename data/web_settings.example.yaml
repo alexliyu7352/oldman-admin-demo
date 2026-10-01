@@ -16,6 +16,8 @@ process:
 web:
   listen_host: 127.0.0.1
   listen_port: 17999
+  # 找回密码邮件这类在请求之外生成的链接用这个地址；改端口时一起改。
+  domain: http://127.0.0.1:17999
   auto_reload: false
   workers: 1
   access_log: false
@@ -87,6 +89,9 @@ redis:
     redis_url: redis://127.0.0.1:6379/5
   SSE:
     redis_url: redis://127.0.0.1:6379/6
+  # 框架内置别名：不指定连接的调用用它。
+  DEFAULT:
+    redis_url: redis://127.0.0.1:6379/3
 storages:
   default:
     backend: oldman.storage.backends.filesystem.FileSystemStorage
