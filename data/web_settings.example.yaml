@@ -10,6 +10,8 @@ app_settings:
     require_superuser: false
 core:
   app_name: oldman_admin_demo
+  # The name people see on error pages and in mail; unset, app_name. The Admin's own name is AdminSite.site_title.
+  site_name: Oldman
   debug: false
 process:
   pid_dir: pids

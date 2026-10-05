@@ -20,3 +20,10 @@
 __pycache__/
 *.py[cod]
 /.ruff_cache/
+
+# `static collect` writes its manifest beside static/.
+/.static.oldman-static.json
+
+# A demo follows the framework's version ranges; it keeps no lock file.
+/frontend/pnpm-lock.yaml
+/uv.lock
